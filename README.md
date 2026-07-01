@@ -1,4 +1,3 @@
-```markdown
 # NTE Fishing Bot — State-Aware Edition
 
 A cross-platform, highly configurable, and stealthy fishing automation script for NTE. 
@@ -42,7 +41,6 @@ sudo pacman -S grim
 sudo usermod -aG input $USER
 # You MUST log out and log back in for this to take effect.
 ```
-
 ---
 
 ## ⚙️ Configuration
