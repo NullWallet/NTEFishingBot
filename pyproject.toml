@@ -1,0 +1,12 @@
+[project]
+name = "nte-fishing-bot"
+version = "0.1.0"
+description = "State-aware fishing bot for NTE"
+requires-python = ">=3.11" # Required for built-in tomllib
+dependencies = [
+    "opencv-python>=4.8.0",
+    "numpy>=1.24.0",
+    "mss>=8.0.0; sys_platform == 'win32'",
+    "pynput>=1.7.6; sys_platform == 'win32'",
+    "evdev>=1.6.0; sys_platform == 'linux'",
+]
