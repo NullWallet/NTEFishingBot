@@ -165,3 +165,21 @@ def cleanup_input() -> None:
     if config.IS_LINUX: _ui.close()
     import screen
     screen.cleanup_screen()
+    
+    import atexit
+
+def _emergency_release():
+    """Failsafe to ensure keys aren't held if the script crashes."""
+    if config.IS_WINDOWS:
+        for key in SCAN_CODES.values():
+            try: _win_send_scan(key, key_up=True)
+            except: pass
+    elif config.IS_LINUX:
+        try:
+            for key in EVDEV_KEY_MAP.values():
+                _ui.write(EV_KEY, key, 0)
+            _ui.syn()
+        except: pass
+
+# Register this to run automatically on script exit/crash
+atexit.register(_emergency_release)
