@@ -1,4 +1,4 @@
-# NTE Fishing Bot — State-Aware Edition
+# NTE Fishing Bot
 
 A cross-platform, highly configurable, and stealthy fishing automation script for NTE. 
 Built to be resolution-independent using percentage-based screen regions and designed to bypass basic input-detection methods by simulating hardware-level keystrokes.
@@ -17,38 +17,33 @@ Built to be resolution-independent using percentage-based screen regions and des
 
 ## 📋 Prerequisites
 
-1. **Python 3.11+** (Required for built-in TOML support. If using 3.10 or lower, the script will automatically use the `tomli` package).
-2. **Template Images:** You must provide your own `bar.png` and `fish_hooked.png`. Place them in an `images/` folder next to the script.
+1. **[uv](https://github.com/astral-sh/uv)** - The fast Python package manager.
+2. **Template Image:** You must provide a cropped grayscale image of the "Press empty area to close" text. Place it in the `images/` folder as `result_screen.png` (or `bar.png`).
 
 ---
 
 ## 🚀 Installation
 
-### Windows
-```powershell
-pip install opencv-python numpy mss pynput
-```
+1. Clone the repository and navigate to the directory.
+2. Install dependencies using uv:
+   ```bash
+   uv sync
+   ```
+3. *(Linux Only)* Grant your user permission to read raw input devices:
+   ```bash
+   sudo usermod -aG input $USER
+   # You MUST log out and log back in for this to take effect.
+   ```
+   *Note: Do not run the bot as `sudo` or screen capture (grim) will fail.*
 
-### Linux (Arch/Manjaro example)
-```bash
-# Python packages
-pip install opencv-python evdev numpy --break-system-packages
-
-# System packages for screen capture and input reading
-sudo pacman -S grim
-
-# Grant your user permission to read raw input devices (REQUIRED)
-sudo usermod -aG input $USER
-# You MUST log out and log back in for this to take effect.
-```
 ---
 
 ## ⚙️ Configuration
 
-On the **first run**, the bot will automatically generate a `config.toml` file in the same directory. 
+On the **first run**, the bot will automatically generate a `config.toml` file in the project root. 
 
 ### Screen Regions (Percentages)
-All regions are calculated based on a `0.0` to `1.0` scale of your total screen width and height. For example, if the fishing bar is exactly in the middle of a 1920x1080 screen (`X=960`), the percentage is `960 / 1920 = 0.5`.
+All regions are calculated based on a `0.0` to `1.0` scale of your total screen width and height. For example, if the UI element is at X=960 on a 1920px wide screen, the percentage is `960 / 1920 = 0.5`.
 
 ```toml
 [regions]
@@ -75,12 +70,11 @@ outside_bounds_mult = 0.95 # 95% of bar half-width where it holds the key to spr
 ## 🎮 Usage
 
 1. Ensure your game is running and visible on screen.
-2. **DO NOT run the script as `sudo` on Linux** (it will break `grim` screen capture).
-3. Run the bot:
+2. Run the bot using uv:
    ```bash
-   python bot.py
+   uv run main.py
    ```
-4. **Controls:**
+3. **Controls:**
    - Press `` ` `` (grave/tilde key) to **Toggle ON/OFF**.
    - Press `Ctrl+C` in the terminal to **Quit**.
 
@@ -97,10 +91,28 @@ To prevent the game from seeing a "Virtual Keyboard" flag, the bot creates a pha
 
 * **`[WARN] No keyboard found — hotkey disabled.` (Linux)**
   * You forgot to add your user to the `input` group, or haven't logged out/in yet. Run `id` in your terminal and check if `input` is listed.
-* **`FileNotFoundError: bar.png not found`**
-  * Make sure you have an `images/` folder next to `bot.py` containing your cropped template images.
+* **`FileNotFoundError: result_screen.png not found`**
+  * Make sure you have the result screen template inside the `images/` folder and the path is correctly set in `config.toml`.
 * **Bot doesn't capture the screen properly on Linux**
   * If you are on Wayland (GNOME/Sway/Hyprland), ensure `grim` is installed. If the regions are completely off, set `manual_resolution` in `config.toml`.
 * **Bot presses keys but the game doesn't react (Windows)**
   * Ensure the game window is in the foreground. Some games require running the terminal as Administrator to accept `SendInput` commands.
-```
+
+***
+
+### 📦 Example `pyproject.toml`
+Since you are using `uv`, make sure your `pyproject.toml` looks something like this so `uv sync` installs the right dependencies for your specific OS:
+
+```toml
+[project]
+name = "nte-fishing-bot"
+version = "0.1.0"
+description = "State-aware fishing bot for NTE"
+requires-python = ">=3.11" # Required for built-in tomllib
+dependencies = [
+    "opencv-python>=4.8.0",
+    "numpy>=1.24.0",
+    "mss>=8.0.0; sys_platform == 'win32'",
+    "pynput>=1.7.6; sys_platform == 'win32'",
+    "evdev>=1.6.0; sys_platform == 'linux'",
+]

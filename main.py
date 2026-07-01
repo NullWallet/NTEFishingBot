@@ -28,6 +28,8 @@ from typing import Optional, Tuple
 import numpy as np
 import cv2
 
+import math
+
 # ─────────────────────────────────────────────────────────────────────────────
 # TOML PARSER 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -53,7 +55,7 @@ DEFAULT_CONFIG_TOML = """
 # ╚═══════════════════════════════════════════════════════════════════════════╝
 
 [paths]
-bar_image = "./images/bar.png"
+bar_image = "./images/result.png"
 hooked_image = "./images/fish_hooked.png"
 
 [screen]
@@ -89,8 +91,8 @@ high = [113, 255, 255]
 pixel_threshold = 30
 
 [detection]
-result_confidence = 0.75
-hooked_confidence = 0.75
+result_confidence = 0.60
+hooked_confidence = 0.60
 # Ring detection geometry (scaled automatically based on resolution)
 hooked_r_inner = 35
 hooked_r_outer = 40
@@ -117,6 +119,10 @@ UNKNOWN = 5.0
 dead_zone_mult = 0.10
 # outside_bounds_mult: Fish is escaping, hold key to sprint (percentage of green bar half-width)
 outside_bounds_mult = 0.95
+
+[debug]
+# Set to true to print detailed info about result screen detection
+result_screen = false
 """
 
 def load_config(path="config.toml") -> dict:
@@ -144,6 +150,9 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(_SCRIPT_DIR, "config.toml")
 CFG = load_config(CONFIG_PATH)
 
+# Debug flags
+DEBUG_RESULT = CFG.get("debug", {}).get("result_screen", False)
+
 _TEMPLATE_PATH = os.path.join(_SCRIPT_DIR, CFG["paths"]["bar_image"])
 _RESULT_TEMPLATE = cv2.imread(_TEMPLATE_PATH, cv2.IMREAD_GRAYSCALE)
 if _RESULT_TEMPLATE is None:
@@ -168,8 +177,8 @@ COLORS = {
 # SCREEN RESOLUTION DETECTION & SCALING
 # ─────────────────────────────────────────────────────────────────────────────
 
-_screen_width: int = CFG["screen"]["base_width"]
-_screen_height: int = CFG["screen"]["base_height"]
+_screen_width: int = math.ceil(CFG["screen"]["base_width"])
+_screen_height: int = math.ceil(CFG["screen"]["base_height"])
 _scaled_regions: dict = {}
 
 def get_screen_resolution() -> Tuple[int, int]:
@@ -206,10 +215,10 @@ def get_screen_resolution() -> Tuple[int, int]:
 
 def scale_region(region_percent: dict, width: int, height: int) -> dict:
     return {
-        "left": int(region_percent["left"] * width),
-        "top": int(region_percent["top"] * height),
-        "width": max(1, int(region_percent["width"] * width)),
-        "height": max(1, int(region_percent["height"] * height)),
+        "left": math.ceil(region_percent["left"] * width),
+        "top": math.ceil(region_percent["top"] * height),
+        "width": max(1, math.ceil(region_percent["width"] * width)),
+        "height": max(1, math.ceil(region_percent["height"] * height)),
     }
 
 def get_region(name: str) -> dict:
@@ -329,8 +338,8 @@ def detect_fish_hooked(debug: bool = False) -> bool:
     if img is None: return False
     h, w = img.shape[:2]; cx, cy = w // 2, h // 2
     scale_factor = min(w, h) / 100.0 
-    R_INNER = int(CFG["detection"]["hooked_r_inner"] * scale_factor)
-    R_OUTER = int(CFG["detection"]["hooked_r_outer"] * scale_factor)
+    R_INNER = math.ceil(CFG["detection"]["hooked_r_inner"] * scale_factor)
+    R_OUTER = math.ceil(CFG["detection"]["hooked_r_outer"] * scale_factor)
 
     Y, X = np.ogrid[:h, :w]
     dist_sq = (X - cx) ** 2 + (Y - cy) ** 2
@@ -359,13 +368,34 @@ def detect_fish_hooked(debug: bool = False) -> bool:
     return blue_in_ring >= scaled_ring_min and ratio >= 2.0 and largest_arc >= scaled_arc_min
 
 def detect_result_screen() -> bool:
-    img = grab(get_region("result_search"), grayscale=True)
-    if img is None: return False
-    th, tw = _RESULT_TEMPLATE.shape[:2]; ih, iw = img.shape[:2]
-    if ih < th or iw < tw: return False
+    """Template match for 'Press empty area to close' text with debug output."""
+    region = get_region("result_search")
+    img = grab(region, grayscale=True)
+    
+    if img is None:
+        if DEBUG_RESULT: print("[DEBUG] Result Screen: Failed to grab region (returned None).")
+        return False
+        
+    th, tw = _RESULT_TEMPLATE.shape[:2]
+    ih, iw = img.shape[:2]
+    
+    # Check if the capture region is smaller than the template itself
+    if ih < th or iw < tw:
+        if DEBUG_RESULT: 
+            print(f"[DEBUG] Result Screen: Region too small! Grabbed: {iw}x{ih}, Template: {tw}x{th}")
+            print(f"[DEBUG] Region coords: {region}")
+        return False
+        
     result = cv2.matchTemplate(img, _RESULT_TEMPLATE, cv2.TM_CCOEFF_NORMED)
-    _, max_val, _, _ = cv2.minMaxLoc(result)
-    return float(max_val) >= CFG["detection"]["result_confidence"]
+    _, max_val, _, max_loc = cv2.minMaxLoc(result)
+    
+    threshold = CFG["detection"]["result_confidence"]
+    detected = float(max_val) >= threshold
+    
+    if DEBUG_RESULT:
+        print(f"[DEBUG] Result Screen: Match={max_val:.4f} at {max_loc} | Threshold={threshold} | Detected={detected}")
+        
+    return detected
 
 def find_bar_positions() -> Optional[Tuple[float, float, float]]:
     region = get_region("bar")
